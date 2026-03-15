@@ -54,7 +54,7 @@ export function ContactOverlay({ onNavigate }: OverlayProps) {
   };
 
   return (
-    <div className="h-full w-full flex flex-col justify-center pointer-events-none pb-12 pt-24 z-10 overflow-y-auto custom-scrollbar">
+    <div className="h-full w-full flex flex-col justify-center pointer-events-auto pb-12 pt-24 z-10 overflow-y-auto custom-scrollbar">
       <div className="max-w-xl px-6 mx-auto w-full pointer-events-auto">
         <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-10 shadow-2xl">
           <h2 className="text-3xl font-bold mb-2 text-center text-white">

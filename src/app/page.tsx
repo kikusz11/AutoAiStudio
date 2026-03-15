@@ -49,62 +49,98 @@ export default function Home() {
 
   // Scroll hijack
   useEffect(() => {
-    const getScrollContainer = () => {
-      // Find the currently active scrollable container
-      return document.querySelector('.custom-scrollbar') as HTMLElement | null;
+    const getScrollContainer = (): HTMLElement | null => {
+      // Get the currently visible active scrollable container
+      const containers = document.querySelectorAll('.custom-scrollbar');
+      // Return the one that's actually visible (has height > 0)
+      for (const el of Array.from(containers)) {
+        const htmlEl = el as HTMLElement;
+        if (htmlEl.offsetHeight > 0) return htmlEl;
+      }
+      return null;
     };
 
     const handleWheel = (e: WheelEvent) => {
-      if (isScrolling) {
-        e.preventDefault();
-        return;
-      }
-
       const container = getScrollContainer();
-      if (!container) return;
 
-      const isAtTop = container.scrollTop <= 0;
-      const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 1;
+      // Check if user is scrolling inside a scrollable container
+      if (container) {
+        const isAtTop = container.scrollTop <= 0;
+        const isAtBottom =
+          container.scrollHeight - container.scrollTop <=
+          container.clientHeight + 50; // 50px tolerance
 
-      if (e.deltaY > 30 && isAtBottom) {
-        e.preventDefault();
-        navigateTo(activeSection + 1);
-      } else if (e.deltaY < -30 && isAtTop) {
-        e.preventDefault();
-        navigateTo(activeSection - 1);
+        // If scrolling UP and NOT at top => let the container scroll freely
+        if (e.deltaY < 0 && !isAtTop) return;
+        // If scrolling DOWN and NOT at bottom => let the container scroll freely
+        if (e.deltaY > 0 && !isAtBottom) return;
+
+        // At boundary: navigate sections (but only if not currently transitioning)
+        if (isScrolling) {
+          e.preventDefault();
+          return;
+        }
+
+        if (e.deltaY > 30 && isAtBottom) {
+          e.preventDefault();
+          navigateTo(activeSection + 1);
+        } else if (e.deltaY < -30 && isAtTop) {
+          e.preventDefault();
+          navigateTo(activeSection - 1);
+        }
+      } else {
+        // No scrollable container — direct section navigation
+        if (isScrolling) {
+          e.preventDefault();
+          return;
+        }
+        if (e.deltaY > 30) {
+          e.preventDefault();
+          navigateTo(activeSection + 1);
+        } else if (e.deltaY < -30) {
+          e.preventDefault();
+          navigateTo(activeSection - 1);
+        }
       }
-      // If none of the above, let the natural scroll happen
     };
 
-    let touchStart = 0;
+    let touchStartY = 0;
+    let touchStartScrollTop = 0;
+
     const handleTouchStart = (e: TouchEvent) => {
-      touchStart = e.touches[0].clientY;
+      touchStartY = e.touches[0].clientY;
+      const container = getScrollContainer();
+      touchStartScrollTop = container ? container.scrollTop : 0;
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
       if (isScrolling) return;
 
-      const touchEnd = e.changedTouches[0].clientY;
-      const diff = touchStart - touchEnd;
-      const threshold = 100; // Increased threshold for mobile
+      const touchEndY = e.changedTouches[0].clientY;
+      const diff = touchStartY - touchEndY; // positive = swipe up = scroll down
+      const threshold = 60;
 
       if (Math.abs(diff) < threshold) return;
 
       const container = getScrollContainer();
       if (!container) {
-        // Fallback for sections without custom-scrollbar (if any)
         navigateTo(activeSection + (diff > 0 ? 1 : -1));
         return;
       }
 
-      const isAtTop = container.scrollTop <= 0;
-      const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 1;
+      const isAtTop = container.scrollTop <= 10;
+      const isAtBottom =
+        container.scrollHeight - container.scrollTop <=
+        container.clientHeight + 50;
+
+      // Only navigate between sections if we're at the scroll boundary
+      // AND the container didn't scroll significantly since touchstart
+      const containerScrolled = Math.abs(container.scrollTop - touchStartScrollTop) > 10;
+      if (containerScrolled) return; // user was scrolling inside, don't switch section
 
       if (diff > 0 && isAtBottom) {
-        // Swiping UP (scrolling DOWN)
         navigateTo(activeSection + 1);
       } else if (diff < 0 && isAtTop) {
-        // Swiping DOWN (scrolling UP)
         navigateTo(activeSection - 1);
       }
     };
@@ -114,7 +150,9 @@ export default function Home() {
       
       const container = getScrollContainer();
       const isAtTop = container ? container.scrollTop <= 0 : true;
-      const isAtBottom = container ? container.scrollHeight - container.scrollTop <= container.clientHeight + 1 : true;
+      const isAtBottom = container
+        ? container.scrollHeight - container.scrollTop <= container.clientHeight + 50
+        : true;
 
       if ((e.key === "ArrowDown" || e.key === "PageDown") && isAtBottom) {
         e.preventDefault();

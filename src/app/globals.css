@@ -137,3 +137,9 @@ body {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
+
+/* Custom scrollbar for section containers — allow native touch scroll on mobile */
+.custom-scrollbar {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}

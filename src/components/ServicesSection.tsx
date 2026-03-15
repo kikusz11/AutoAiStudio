@@ -13,7 +13,7 @@ export function ServicesOverlay({ onNavigate }: ServicesOverlayProps) {
   const { t } = useLanguage();
 
   return (
-    <div className="h-full w-full flex flex-col justify-center pointer-events-none pt-24 pb-24 z-10 overflow-y-auto custom-scrollbar">
+    <div className="h-full w-full flex flex-col justify-center pointer-events-auto pt-24 pb-24 z-10 overflow-y-auto custom-scrollbar">
       <div className="max-w-7xl w-full px-6 md:px-12 lg:px-16 mx-auto text-center pointer-events-auto h-full flex flex-col items-center">
         <div className="my-auto py-4 w-full">
           <div className="mb-8 lg:mb-12">
