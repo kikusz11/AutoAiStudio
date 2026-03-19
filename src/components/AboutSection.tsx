@@ -20,7 +20,7 @@ export function AboutOverlay({ onNavigate }: OverlayProps) {
   }>;
 
   return (
-    <div className="h-full w-full flex flex-col justify-start md:justify-center overflow-y-auto pointer-events-auto pb-24 pt-32 lg:pt-24 z-10 custom-scrollbar">
+    <div className="h-full w-full flex flex-col justify-start md:justify-center overflow-y-auto pointer-events-auto pb-8 pt-32 lg:pt-24 z-10 custom-scrollbar">
       <div className="max-w-5xl px-6 md:px-12 lg:px-24 mx-auto w-full pointer-events-auto">
         <div className="text-center mb-12">
           <p className="text-accent font-bold text-sm tracking-widest uppercase mb-4">

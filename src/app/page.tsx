@@ -128,19 +128,23 @@ export default function Home() {
         return;
       }
 
-      const isAtTop = container.scrollTop <= 10;
+      const isAtTop = container.scrollTop <= 20;
       const isAtBottom =
         container.scrollHeight - container.scrollTop <=
         container.clientHeight + 50;
 
-      // Only navigate between sections if we're at the scroll boundary
-      // AND the container didn't scroll significantly since touchstart
-      const containerScrolled = Math.abs(container.scrollTop - touchStartScrollTop) > 10;
-      if (containerScrolled) return; // user was scrolling inside, don't switch section
+      const startedAtTop = touchStartScrollTop <= 20;
+      const startedAtBottom =
+        container.scrollHeight - touchStartScrollTop <=
+        container.clientHeight + 50;
 
-      if (diff > 0 && isAtBottom) {
+      // Only navigate between sections if we're at the scroll boundary
+      // AND either the container didn't scroll significantly, OR we started the swipe already at the boundary (fixes iOS rubber banding).
+      const containerScrolled = Math.abs(container.scrollTop - touchStartScrollTop) > 10;
+      
+      if (diff > 0 && isAtBottom && (!containerScrolled || startedAtBottom)) {
         navigateTo(activeSection + 1);
-      } else if (diff < 0 && isAtTop) {
+      } else if (diff < 0 && isAtTop && (!containerScrolled || startedAtTop)) {
         navigateTo(activeSection - 1);
       }
     };
@@ -206,14 +210,16 @@ export default function Home() {
           <img
             src="/logo.webp"
             alt="MindForge Studio Logo"
-            className="w-full h-full object-contain dark:invert"
+            className="w-full h-full object-contain brightness-0 invert"
           />
         </motion.div>
         
         <motion.span
           layout
           className={`font-black tracking-tighter text-foreground whitespace-nowrap transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-            activeSection === 0 ? "text-4xl md:text-6xl lg:text-7xl tracking-tight" : "text-xl tracking-wider"
+            activeSection === 0 
+              ? "text-4xl md:text-6xl lg:text-7xl tracking-tight opacity-100" 
+              : "text-xl tracking-wider opacity-0 w-0 overflow-hidden sm:opacity-100 sm:w-auto sm:overflow-visible"
           }`}
         >
           MindForge Studio
@@ -265,7 +271,7 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      <div className="fixed inset-0 z-10 pointer-events-none">
+      <div className="fixed inset-0 bottom-24 md:bottom-0 z-10 pointer-events-none">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeSection}

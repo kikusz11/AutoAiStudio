@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     "AI customer service",
   ],
   icons: {
-    icon: "/favicon.webp",
+    icon: "/logo.webp",
   },
 };
 
