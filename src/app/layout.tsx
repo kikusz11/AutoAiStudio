@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Outfit, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/components/LanguageProvider";
+import VisitorTracker from "@/components/VisitorTracker";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -40,7 +41,10 @@ export default function RootLayout({
       <body
         className={`${outfit.variable} ${geistMono.variable} antialiased font-sans`}
       >
-        <LanguageProvider>{children}</LanguageProvider>
+        <LanguageProvider>
+          <VisitorTracker />
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );

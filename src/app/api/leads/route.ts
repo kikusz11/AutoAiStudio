@@ -11,23 +11,24 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
+    // Generate ID down here so we don't need to SELECT it back (which fails anon RLS)
+    const leadId = crypto.randomUUID();
+
     // Insert lead
-    const { data: lead, error: leadError } = await supabase
+    const { error: leadError } = await supabase
       .from("leads")
-      .insert({ name, email, company })
-      .select("id")
-      .single();
+      .insert({ id: leadId, name, email, company });
 
     if (leadError) {
       console.error("Lead insert error:", leadError);
-      return NextResponse.json({ error: "Failed to save lead" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to save lead: " + leadError.message }, { status: 500 });
     }
 
     // Insert chat log
     const { error: chatError } = await supabase
       .from("chat_logs")
       .insert({
-        lead_id: lead.id,
+        lead_id: leadId,
         session_id: sessionId,
         messages: messages,
         summary: `Beszélgetés ${name}-vel (${email})`,
@@ -35,9 +36,10 @@ export async function POST(request: NextRequest) {
 
     if (chatError) {
       console.error("Chat log insert error:", chatError);
+      return NextResponse.json({ error: "Lead saved but chat log failed: " + chatError.message, leadId: leadId }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, leadId: lead.id });
+    return NextResponse.json({ success: true, leadId: leadId });
   } catch (error) {
     console.error("Leads API error:", error);
     return NextResponse.json(
