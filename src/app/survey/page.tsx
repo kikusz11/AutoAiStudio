@@ -21,6 +21,7 @@ import {
   Shield,
   Clock,
   Sparkles,
+  BookDashed,
 } from "lucide-react";
 
 type Locale = "en" | "hu";
@@ -221,6 +222,35 @@ export default function SurveyPage({ onNavigate }: { onNavigate?: (idx: number) 
     return (
       <main className={`h-screen w-screen text-foreground flex items-center justify-center ${onNavigate ? "bg-transparent" : "bg-background"}`}>
         <Loader2 className="w-8 h-8 animate-spin text-white/30" />
+      </main>
+    );
+  }
+
+  // ─── EMPTY STATE ──────────────────────────────────────────
+  if (totalSteps === 0) {
+    return (
+      <main className={`min-h-screen w-full flex flex-col justify-center items-center p-6 ${onNavigate ? "bg-transparent text-white" : "bg-background text-foreground"}`}>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center max-w-sm text-center"
+        >
+          <div className="w-20 h-20 bg-white/5 border border-white/10 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(255,255,255,0.05)]">
+            <BookDashed className="text-zinc-400 w-10 h-10" />
+          </div>
+          <h1 className="text-2xl font-bold mb-3 tracking-tight">Kérdőív Üres</h1>
+          <p className="text-zinc-500 text-sm mb-8 leading-relaxed">
+            Jelenleg egyetlen kérdés sincs beállítva. Kérlek hozd létre őket az Admin panel "Kérdőívszerkesztő" menüpontjában, vagy importálj egy json sémát az AI segítségével.
+          </p>
+          {onNavigate && (
+            <button 
+              onClick={() => onNavigate(0)} 
+              className="px-6 py-2.5 bg-white text-black font-bold rounded-full text-sm hover:scale-105 transition-transform"
+            >
+              Vissza a Főoldalra
+            </button>
+          )}
+        </motion.div>
       </main>
     );
   }

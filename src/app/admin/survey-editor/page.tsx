@@ -33,7 +33,8 @@ import {
   ClipboardCopy,
   Upload,
   RefreshCw,
-  Network
+  Network,
+  BookDashed
 } from "lucide-react";
 import { SurveyFlowchart } from "@/components/admin/SurveyFlowchart";
 
@@ -422,7 +423,21 @@ export default function SurveyEditorPage() {
         {loading ? (
           <div className="text-center py-20 text-foreground/30">Betöltés...</div>
         ) : questions.length === 0 ? (
-          <div className="text-center py-20 text-foreground/30">Nincs kérdés. Hozz létre egyet!</div>
+          <div className="flex flex-col items-center justify-center py-32 text-center">
+            <div className="w-20 h-20 mb-6 bg-white/5 border border-white/10 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.02)]">
+              <BookDashed className="text-zinc-600 w-10 h-10" />
+            </div>
+            <h2 className="text-2xl font-bold mb-3 text-white tracking-tight">Kezdjünk el építeni!</h2>
+            <p className="text-sm text-zinc-500 max-w-sm leading-relaxed mb-8">
+              Jelenleg teljesen üres a rendszer. Hozz létre egy új kérdést az alapokhoz, vagy használd a <strong className="text-zinc-300">JSON Szerkesztőt</strong> egy komplett mesterséges intelligencia által generált struktúra beimportálására.
+            </p>
+            <button
+              onClick={() => { setIsCreating(true); setEditingId(null); setViewMode("list"); }}
+              className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(147,51,234,0.3)] hover:shadow-[0_0_30px_rgba(147,51,234,0.5)]"
+            >
+              Első Kérdés Létrehozása
+            </button>
+          </div>
         ) : viewMode === "flow" ? (
           <div className="h-[75vh] w-full">
             <SurveyFlowchart questions={questions} />
