@@ -95,6 +95,7 @@ export default function SurveyEditorPage() {
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
 
   // JSON panel
   const [showJsonPanel, setShowJsonPanel] = useState(false);
@@ -160,6 +161,15 @@ export default function SurveyEditorPage() {
     if (error) return showToast("error", "Törlés sikertelen");
     setDeleteConfirmId(null);
     showToast("success", "Kérdés törölve");
+    await load();
+  };
+
+  const handleDeleteAll = async () => {
+    // Delete all records mathematically by matching anything >= min integer, or just 'neq' null
+    const { error } = await supabase.from("survey_builder_questions").delete().gte("sort_order", -99999);
+    if (error) return showToast("error", "Törlés sikertelen!");
+    setDeleteAllConfirm(false);
+    showToast("success", "Minden kérdés törölve!");
     await load();
   };
 
@@ -333,6 +343,34 @@ export default function SurveyEditorPage() {
           >
             <Plus size={16} /> Új kérdés
           </button>
+          
+          {deleteAllConfirm ? (
+            <div className="flex items-center gap-1 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-xl">
+              <span className="text-xs font-bold text-red-400 px-2">Biztosan?</span>
+              <button
+                onClick={handleDeleteAll}
+                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all"
+              >
+                Igen, törlés
+              </button>
+              <button
+                onClick={() => setDeleteAllConfirm(false)}
+                className="px-2 py-1.5 rounded-lg text-foreground/40 hover:text-foreground text-xs font-bold transition-all"
+              >
+                Mégse
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setDeleteAllConfirm(true)}
+              disabled={questions.length === 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-foreground/60 hover:text-red-400 hover:border-red-500/30 transition-all disabled:opacity-30 disabled:pointer-events-none"
+              title="Összes kérdés törlése"
+            >
+              <Trash2 size={14} /> Ürítés
+            </button>
+          )}
+
           <button
             onClick={() => setViewMode(viewMode === "list" ? "flow" : "list")}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
