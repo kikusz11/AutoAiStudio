@@ -238,17 +238,28 @@ export default function SurveyPage({ onNavigate }: { onNavigate?: (idx: number) 
           <div className="w-20 h-20 bg-white/5 border border-white/10 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(255,255,255,0.05)]">
             <BookDashed className="text-zinc-400 w-10 h-10" />
           </div>
-          <h1 className="text-2xl font-bold mb-3 tracking-tight">Kérdőív Üres</h1>
+          <h1 className="text-2xl font-bold mb-3 tracking-tight">
+            {lang === "hu" ? "Kérdőív Frissítés Alatt" : "Survey Under Maintenance"}
+          </h1>
           <p className="text-zinc-500 text-sm mb-8 leading-relaxed">
-            Jelenleg egyetlen kérdés sincs beállítva. Kérlek hozd létre őket az Admin panel "Kérdőívszerkesztő" menüpontjában, vagy importálj egy json sémát az AI segítségével.
+            {lang === "hu" 
+              ? "Jelenleg fejlesztés és frissítés alatt áll a kérdőív rendszerünk. Kérjük, nézz vissza kicsit később, vagy vedd fel velünk a kapcsolatot közvetlenül!"
+              : "Our questionnaire is currently undergoing updates and improvements. Please check back later or contact us directly."}
           </p>
-          {onNavigate && (
+          {onNavigate ? (
             <button 
               onClick={() => onNavigate(0)} 
               className="px-6 py-2.5 bg-white text-black font-bold rounded-full text-sm hover:scale-105 transition-transform"
             >
-              Vissza a Főoldalra
+              {lang === "hu" ? "Vissza a Főoldalra" : "Back to Home"}
             </button>
+          ) : (
+            <a 
+              href="/" 
+              className="inline-flex px-6 py-2.5 bg-white text-black font-bold rounded-full text-sm hover:scale-105 transition-transform"
+            >
+              {lang === "hu" ? "Vissza a Főoldalra" : "Back to Home"}
+            </a>
           )}
         </motion.div>
       </main>
