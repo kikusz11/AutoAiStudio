@@ -21,6 +21,12 @@ export default function VisitorsDashboard() {
   const [sessions, setSessions] = useState<VisitorSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Pagination state
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
   const supabase = createClient();
   const router = useRouter();
 
@@ -30,28 +36,31 @@ export default function VisitorsDashboard() {
     return () => clearInterval(clockInterval);
   }, []);
 
+  useEffect(() => {
+    fetchSessions();
+  }, [page]);
+
   const checkAuthAndFetch = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       router.push("/admin/login");
       return;
     }
-    fetchSessions();
-    
-    // Auto refresh every 10 seconds
-    const interval = setInterval(fetchSessions, 10000);
-    return () => clearInterval(interval);
   };
 
   const fetchSessions = async () => {
-    const { data, error } = await supabase
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
+    const { data, error, count } = await supabase
       .from("visitor_sessions")
-      .select("*")
+      .select("*", { count: "exact" })
       .order("last_active_at", { ascending: false })
-      .limit(100);
+      .range(from, to);
 
     if (!error && data) {
       setSessions(data);
+      if (count !== null) setTotal(count);
     }
     setLoading(false);
   };
@@ -162,8 +171,38 @@ export default function VisitorsDashboard() {
                 </tbody>
               </table>
             </div>
+            <Pagination currentPage={page} totalItems={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function Pagination({ currentPage, totalItems, pageSize, onPageChange }: { currentPage: number, totalItems: number, pageSize: number, onPageChange: (page: number) => void }) {
+  const totalPages = Math.ceil(totalItems / pageSize);
+  if (totalItems === 0) return null;
+
+  return (
+    <div className="p-6 border-t border-white/5 flex items-center justify-between">
+      <p className="text-xs text-foreground/40 font-medium uppercase tracking-wider">
+        Összesen: <span className="text-foreground">{totalItems}</span> | Oldal: <span className="text-foreground">{currentPage} / {totalPages}</span>
+      </p>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white/5 hover:bg-white/10 text-white disabled:opacity-20 disabled:pointer-events-none border border-white/10"
+        >
+          Előző
+        </button>
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white/10 hover:bg-white/20 text-white disabled:opacity-20 disabled:pointer-events-none border border-white/20"
+        >
+          Következő
+        </button>
       </div>
     </div>
   );

@@ -20,7 +20,7 @@ export default function AdminLayout({
             className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-foreground/80 hover:text-foreground transition-all"
           >
             <Users size={18} />
-            <span className="font-medium text-sm">Leadek</span>
+            <span className="font-medium text-sm">Dashboard</span>
           </Link>
           <Link
             href="/admin/visitors"
