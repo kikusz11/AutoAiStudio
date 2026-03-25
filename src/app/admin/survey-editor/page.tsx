@@ -218,27 +218,55 @@ export default function SurveyEditorPage() {
 
   // ─── JSON Export ───────────────────────────────────────────
   const openJsonPanel = () => {
-    const exportable = questions.map((q) => ({
-      question_id: q.question_id,
-      type: q.type,
-      section: q.section,
-      sort_order: q.sort_order,
-      is_active: q.is_active,
-      required: q.required,
-      label_hu: q.label_hu,
-      label_en: q.label_en,
-      description_hu: q.description_hu,
-      description_en: q.description_en,
-      placeholder_hu: q.placeholder_hu,
-      placeholder_en: q.placeholder_en,
-      tooltip_hu: q.tooltip_hu,
-      tooltip_en: q.tooltip_en,
-      has_other: q.has_other,
-      other_label_hu: q.other_label_hu,
-      other_label_en: q.other_label_en,
-      options: q.options,
-      condition_json: q.condition_json,
-    }));
+    let exportable: any[];
+    if (questions.length === 0) {
+      exportable = [{
+        question_id: "example_question_1",
+        type: "single_choice",
+        section: "intro",
+        sort_order: 1,
+        is_active: true,
+        required: true,
+        label_hu: "Minta kérdés (HU)",
+        label_en: "Sample question (EN)",
+        description_hu: "Opcionális leírás",
+        description_en: "Optional description",
+        placeholder_hu: null,
+        placeholder_en: null,
+        tooltip_hu: null,
+        tooltip_en: null,
+        has_other: false,
+        other_label_hu: null,
+        other_label_en: null,
+        options: [
+          { value: "option_1", label_hu: "Válasz 1", label_en: "Option 1" },
+          { value: "option_2", label_hu: "Válasz 2", label_en: "Option 2" }
+        ],
+        condition_json: null
+      }];
+    } else {
+      exportable = questions.map((q) => ({
+        question_id: q.question_id,
+        type: q.type,
+        section: q.section,
+        sort_order: q.sort_order,
+        is_active: q.is_active,
+        required: q.required,
+        label_hu: q.label_hu,
+        label_en: q.label_en,
+        description_hu: q.description_hu,
+        description_en: q.description_en,
+        placeholder_hu: q.placeholder_hu,
+        placeholder_en: q.placeholder_en,
+        tooltip_hu: q.tooltip_hu,
+        tooltip_en: q.tooltip_en,
+        has_other: q.has_other,
+        other_label_hu: q.other_label_hu,
+        other_label_en: q.other_label_en,
+        options: q.options,
+        condition_json: q.condition_json,
+      }));
+    }
     setJsonText(JSON.stringify(exportable, null, 2));
     setShowJsonPanel(true);
   };
