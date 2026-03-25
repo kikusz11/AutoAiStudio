@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "./LanguageProvider";
-import { Home, Briefcase, User, Mail, Sparkles } from "lucide-react";
+import { Home, Briefcase, User, Mail, Sparkles, ClipboardList } from "lucide-react";
 
 const sectionIndices = [0, 1, 2, 3];
 
@@ -16,11 +16,22 @@ export function Dock({
   onNavigate: (index: number) => void;
   onChatToggle: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [clicks, setClicks] = useState<number[]>([]);
   
+  const getSurveyLabel = () => {
+    switch (locale) {
+      case "hu": return "Kérdőív";
+      case "de": return "Umfrage";
+      case "fr": return "Sondage";
+      case "es": return "Encuesta";
+      case "it": return "Sondaggio";
+      default: return "Survey";
+    }
+  };
+
   // Custom tooltips
-  const labels = [t.nav.home, t.nav.services, t.nav.about, t.nav.contact];
+  const labels = [t.nav.home, t.nav.services, t.nav.about, t.nav.contact, getSurveyLabel()];
 
   const handleOrbClick = () => {
     setClicks((prev) => [...prev, Date.now()]);
@@ -80,6 +91,15 @@ export function Dock({
           <User size={22} className={`transition-transform duration-300 ${activeSection === 3 ? 'scale-110' : 'group-hover:scale-110'}`} />
           {activeSection === 3 && <motion.div layoutId="dockActive" className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />}
         </button>
+
+        {/* Item 5: Survey */}
+        <a
+          href="/survey"
+          title={labels[4]}
+          className={`relative group p-2 rounded-full transition-colors flex items-center justify-center text-foreground/50 hover:text-foreground/80 hover:bg-black/5`}
+        >
+          <ClipboardList size={22} className={`transition-transform duration-300 group-hover:scale-110`} />
+        </a>
 
       </div>
     </motion.div>

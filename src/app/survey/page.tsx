@@ -1,0 +1,775 @@
+"use client";
+
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useLanguage } from "@/components/LanguageProvider";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import {
+  surveyQuestions,
+  surveySections,
+  surveyUI,
+  type SurveyQuestion,
+} from "@/lib/surveyQuestions";
+import { createClient } from "@/lib/supabase/client";
+import {
+  ArrowRight,
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  Loader2,
+  Info,
+  Shield,
+  Clock,
+  Sparkles,
+} from "lucide-react";
+
+type Locale = "en" | "hu";
+type Answers = Record<string, string | string[]>;
+
+const AUTOSAVE_KEY = "mindforge_survey_draft";
+
+function generateSessionId(): string {
+  return "s_" + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+}
+
+export default function SurveyPage() {
+  const { locale: appLocale } = useLanguage();
+  const lang = (["en", "hu"].includes(appLocale) ? appLocale : "en") as Locale;
+  const ui = surveyUI[lang];
+
+  const [answers, setAnswers] = useState<Answers>({});
+  const [otherTexts, setOtherTexts] = useState<Record<string, string>>({});
+  const [currentStep, setCurrentStep] = useState(0);
+  const [direction, setDirection] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [sessionId] = useState(() => generateSessionId());
+  const [startTime] = useState(() => Date.now());
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Compute visible questions based on conditions
+  const visibleQuestions = useMemo(() => {
+    return surveyQuestions.filter((q) => {
+      if (!q.condition) return true;
+      const depAnswer = answers[q.condition.questionId];
+      if (!depAnswer) return false;
+      const depArray = Array.isArray(depAnswer) ? depAnswer : [depAnswer];
+      return q.condition.includes.some((v) => depArray.includes(v));
+    });
+  }, [answers]);
+
+  const currentQuestion = visibleQuestions[currentStep];
+  const totalSteps = visibleQuestions.length;
+  const progressPercent = Math.round(((currentStep) / (totalSteps - 1)) * 100);
+
+  // ─── AUTOSAVE ────────────────────────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem(AUTOSAVE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.answers) setAnswers(parsed.answers);
+        if (parsed.otherTexts) setOtherTexts(parsed.otherTexts);
+        if (parsed.step && parsed.step < surveyQuestions.length) setCurrentStep(parsed.step);
+      } catch {
+        // ignore corrupted data
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isSubmitted) {
+      localStorage.setItem(
+        AUTOSAVE_KEY,
+        JSON.stringify({ answers, otherTexts, step: currentStep })
+      );
+    }
+  }, [answers, otherTexts, currentStep, isSubmitted]);
+
+  // ─── ANSWER HANDLERS ────────────────────────────────────
+  const setAnswer = useCallback((questionId: string, value: string | string[]) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: value }));
+    setValidationError(null);
+  }, []);
+
+  const setOtherText = useCallback((questionId: string, text: string) => {
+    setOtherTexts((prev) => ({ ...prev, [questionId]: text }));
+  }, []);
+
+  const toggleMultiSelect = useCallback(
+    (questionId: string, value: string) => {
+      setAnswers((prev) => {
+        const current = (prev[questionId] as string[]) || [];
+        const next = current.includes(value)
+          ? current.filter((v) => v !== value)
+          : [...current, value];
+        return { ...prev, [questionId]: next };
+      });
+      setValidationError(null);
+    },
+    []
+  );
+
+  // ─── VALIDATION ──────────────────────────────────────────
+  const validateCurrent = useCallback((): boolean => {
+    if (!currentQuestion) return true;
+    if (currentQuestion.type === "intro" || currentQuestion.type === "statement") return true;
+    if (!currentQuestion.required) return true;
+
+    const answer = answers[currentQuestion.id];
+
+    if (currentQuestion.type === "multi_select") {
+      if (!answer || (answer as string[]).length === 0) {
+        setValidationError(ui.required);
+        return false;
+      }
+    } else if (currentQuestion.type === "yes_no") {
+      if (!answer) {
+        setValidationError(ui.required);
+        return false;
+      }
+    } else {
+      if (!answer || (typeof answer === "string" && answer.trim() === "")) {
+        setValidationError(ui.required);
+        return false;
+      }
+    }
+
+    // Check Other text
+    if (currentQuestion.hasOther) {
+      const selected = Array.isArray(answer) ? answer : [answer];
+      if (selected.includes("other") && (!otherTexts[currentQuestion.id] || otherTexts[currentQuestion.id].trim() === "")) {
+        setValidationError(ui.required);
+        return false;
+      }
+    }
+
+    return true;
+  }, [currentQuestion, answers, otherTexts, ui.required]);
+
+  // ─── NAVIGATION ──────────────────────────────────────────
+  const goNext = useCallback(() => {
+    if (!validateCurrent()) return;
+    if (currentStep < totalSteps - 1) {
+      setDirection(1);
+      setCurrentStep((s) => s + 1);
+      setValidationError(null);
+    }
+  }, [validateCurrent, currentStep, totalSteps]);
+
+  const goBack = useCallback(() => {
+    if (currentStep > 0) {
+      setDirection(-1);
+      setCurrentStep((s) => s - 1);
+      setValidationError(null);
+    }
+  }, [currentStep]);
+
+  // ─── SUBMIT ──────────────────────────────────────────────
+  const handleSubmit = useCallback(async () => {
+    if (!validateCurrent()) return;
+    setIsSubmitting(true);
+
+    try {
+      const supabase = createClient();
+      const completionTime = Math.round((Date.now() - startTime) / 1000);
+
+      const payload = {
+        session_id: sessionId,
+        language: lang,
+        completion_status: "completed",
+        completion_time_seconds: completionTime,
+        answers,
+        other_texts: otherTexts,
+      };
+
+      const { error } = await supabase.from("survey_responses").insert([payload]);
+      if (error) throw error;
+
+      localStorage.removeItem(AUTOSAVE_KEY);
+      setIsSubmitted(true);
+    } catch (err) {
+      console.error("Survey submission error:", err);
+      alert("Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [validateCurrent, answers, otherTexts, sessionId, lang, startTime]);
+
+  // ─── KEYBOARD NAV ────────────────────────────────────────
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        if (currentStep === totalSteps - 1) handleSubmit();
+        else goNext();
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [goNext, handleSubmit, currentStep, totalSteps]);
+
+  // ─── SCROLL TO TOP ON STEP CHANGE ────────────────────────
+  useEffect(() => {
+    containerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentStep]);
+
+  // ─── RENDER SUBMITTED STATE ──────────────────────────────
+  if (isSubmitted) {
+    return (
+      <main className="min-h-screen w-screen bg-background text-foreground flex flex-col">
+        <LanguageSwitcher />
+        <div className="flex-1 flex items-center justify-center px-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="text-center max-w-md"
+          >
+            <div className="w-20 h-20 mx-auto mb-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+              <Sparkles className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold mb-4">{ui.thankYouTitle}</h1>
+            <p className="text-zinc-400 text-lg leading-relaxed mb-8">
+              {ui.thankYouMessage}
+            </p>
+            <a
+              href="/"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black font-bold text-sm hover:scale-105 transition-transform"
+            >
+              MindForge Studio
+              <ArrowRight size={16} />
+            </a>
+          </motion.div>
+        </div>
+        <div className="text-center py-6 text-zinc-600 text-xs">
+          {ui.poweredBy}
+        </div>
+      </main>
+    );
+  }
+
+  // ─── COMPUTE SECTION ─────────────────────────────────────
+  const currentSectionId = currentQuestion?.section || "intro";
+  const currentSectionMeta = surveySections.find((s) => s.id === currentSectionId);
+
+  const isLastStep = currentStep === totalSteps - 1;
+  const isIntro = currentQuestion?.type === "intro";
+
+  return (
+    <main className="h-screen w-screen bg-background text-foreground flex flex-col overflow-hidden relative">
+      {/* Subtle background gradient */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-radial from-white/[0.02] to-transparent rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-gradient-radial from-white/[0.01] to-transparent rounded-full blur-3xl" />
+      </div>
+
+      <LanguageSwitcher />
+
+      {/* Top Bar */}
+      <div className="relative z-20 flex items-center justify-between px-4 md:px-8 pt-5 pb-2">
+        <a href="/" className="flex items-center gap-3 group">
+          <img
+            src="/logo.webp"
+            alt="MindForge Studio"
+            className="w-8 h-8 object-contain brightness-0 invert"
+          />
+          <span className="text-sm font-bold text-zinc-400 group-hover:text-white transition-colors hidden sm:inline">
+            MindForge Studio
+          </span>
+        </a>
+
+        {!isIntro && (
+          <div className="flex items-center gap-3 text-xs text-zinc-500">
+            <span className="hidden sm:inline">{currentSectionMeta?.label[lang]}</span>
+            <span className="font-mono">{currentStep}/{totalSteps - 1}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Progress Bar */}
+      {!isIntro && (
+        <div className="relative z-20 px-4 md:px-8 pb-2">
+          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-gradient-to-r from-white/40 to-white/80 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPercent}%` }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div
+        ref={containerRef}
+        className="flex-1 relative z-10 flex items-center justify-center px-4 md:px-6 overflow-y-auto custom-scrollbar py-8"
+      >
+        <AnimatePresence mode="wait" custom={direction}>
+          <motion.div
+            key={currentStep}
+            custom={direction}
+            initial={{ opacity: 0, x: direction * 60, scale: 0.97 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: direction * -60, scale: 0.97 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            className="w-full max-w-xl mx-auto"
+          >
+            {currentQuestion && (
+              <QuestionRenderer
+                question={currentQuestion}
+                lang={lang}
+                ui={ui}
+                answer={answers[currentQuestion.id]}
+                otherText={otherTexts[currentQuestion.id] || ""}
+                onAnswer={setAnswer}
+                onOtherText={setOtherText}
+                onToggleMulti={toggleMultiSelect}
+                validationError={validationError}
+                activeTooltip={activeTooltip}
+                onToggleTooltip={setActiveTooltip}
+                onStart={goNext}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Bottom Nav */}
+      {!isIntro && (
+        <div className="relative z-20 px-4 md:px-8 pb-6 pt-2">
+          <div className="max-w-xl mx-auto flex items-center justify-between gap-4">
+            <button
+              onClick={goBack}
+              disabled={currentStep === 0}
+              className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium text-zinc-500 hover:text-white hover:bg-white/5 transition-all disabled:opacity-0 disabled:pointer-events-none"
+            >
+              <ArrowLeft size={16} />
+              {ui.back}
+            </button>
+
+            {isLastStep ? (
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-black font-bold text-sm shadow-[0_0_40px_rgba(255,255,255,0.05)] hover:shadow-[0_0_60px_rgba(255,255,255,0.15)] transition-all hover:scale-105 disabled:opacity-50 disabled:scale-100"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    {ui.submitting}
+                  </>
+                ) : (
+                  <>
+                    {ui.submit}
+                    <Check size={16} />
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={goNext}
+                className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-black font-bold text-sm shadow-[0_0_40px_rgba(255,255,255,0.05)] hover:shadow-[0_0_60px_rgba(255,255,255,0.15)] transition-all hover:scale-105"
+              >
+                {currentQuestion?.required ? ui.next : ui.skip}
+                <ArrowRight size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// QuestionRenderer
+// ═════════════════════════════════════════════════════════════
+interface QRProps {
+  question: SurveyQuestion;
+  lang: Locale;
+  ui: (typeof surveyUI)["en"];
+  answer: string | string[] | undefined;
+  otherText: string;
+  onAnswer: (id: string, val: string | string[]) => void;
+  onOtherText: (id: string, text: string) => void;
+  onToggleMulti: (id: string, val: string) => void;
+  validationError: string | null;
+  activeTooltip: string | null;
+  onToggleTooltip: (id: string | null) => void;
+  onStart: () => void;
+}
+
+function QuestionRenderer({
+  question,
+  lang,
+  ui,
+  answer,
+  otherText,
+  onAnswer,
+  onOtherText,
+  onToggleMulti,
+  validationError,
+  activeTooltip,
+  onToggleTooltip,
+  onStart,
+}: QRProps) {
+  const label = question.label[lang];
+  const desc = question.description?.[lang];
+  const placeholder = question.placeholder?.[lang];
+  const tooltip = question.tooltip?.[lang];
+
+  // ─── INTRO SCREEN ────────────────────────────────────────
+  if (question.type === "intro") {
+    return (
+      <div className="text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+            <img
+              src="/logo.webp"
+              alt="MindForge"
+              className="w-10 h-10 object-contain brightness-0 invert"
+            />
+          </div>
+          <h1 className="text-2xl md:text-4xl font-bold mb-4 leading-tight">
+            {label}
+          </h1>
+          {desc && (
+            <p className="text-zinc-400 text-base md:text-lg leading-relaxed mb-8 max-w-md mx-auto">
+              {desc}
+            </p>
+          )}
+
+          <div className="flex items-center justify-center gap-6 mb-10 text-xs text-zinc-500">
+            <span className="flex items-center gap-1.5">
+              <Shield size={14} />
+              {ui.anonymous}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Clock size={14} />
+              {ui.timeEstimate}
+            </span>
+          </div>
+
+          <button
+            onClick={onStart}
+            className="group inline-flex items-center gap-2 px-8 py-4 rounded-full bg-white text-black font-bold text-base shadow-[0_0_40px_rgba(255,255,255,0.08)] hover:shadow-[0_0_60px_rgba(255,255,255,0.2)] transition-all duration-500 hover:scale-105"
+          >
+            {ui.start}
+            <ArrowRight
+              size={18}
+              className="group-hover:translate-x-1 transition-transform"
+            />
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ─── QUESTION HEADER ─────────────────────────────────────
+  const header = (
+    <div className="mb-6">
+      <div className="flex items-start gap-2 mb-2">
+        <h2 className="text-xl md:text-2xl font-bold leading-snug flex-1">{label}</h2>
+        {tooltip && (
+          <button
+            onClick={() =>
+              onToggleTooltip(activeTooltip === question.id ? null : question.id)
+            }
+            className="mt-1 flex-shrink-0 w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition-all"
+          >
+            <Info size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* Tooltip */}
+      <AnimatePresence>
+        {tooltip && activeTooltip === question.id && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <p className="text-xs text-zinc-400 bg-white/5 border border-white/10 rounded-lg px-3 py-2 mb-3 leading-relaxed">
+              {tooltip}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {desc && (
+        <p className="text-sm text-zinc-500 leading-relaxed">{desc}</p>
+      )}
+      {question.required && (
+        <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600">
+          *
+        </span>
+      )}
+    </div>
+  );
+
+  // ─── YES / NO ────────────────────────────────────────────
+  if (question.type === "yes_no") {
+    return (
+      <div>
+        {header}
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { val: "yes", label: ui.yes },
+            { val: "no", label: ui.no },
+          ].map((opt) => (
+            <button
+              key={opt.val}
+              onClick={() => onAnswer(question.id, opt.val)}
+              className={`py-4 rounded-xl border text-base font-semibold transition-all duration-300 ${
+                answer === opt.val
+                  ? "bg-white text-black border-white shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+                  : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:border-white/20"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {validationError && <ValidationMsg msg={validationError} />}
+      </div>
+    );
+  }
+
+  // ─── SINGLE CHOICE ───────────────────────────────────────
+  if (question.type === "single_choice") {
+    return (
+      <div>
+        {header}
+        <div className="space-y-2">
+          {question.options?.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onAnswer(question.id, opt.value)}
+              className={`w-full text-left px-4 py-3.5 rounded-xl border text-sm font-medium transition-all duration-300 flex items-center gap-3 ${
+                answer === opt.value
+                  ? "bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.08)]"
+                  : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:border-white/20"
+              }`}
+            >
+              <div
+                className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                  answer === opt.value
+                    ? "border-black bg-black"
+                    : "border-zinc-600"
+                }`}
+              >
+                {answer === opt.value && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                )}
+              </div>
+              {opt.label[lang]}
+            </button>
+          ))}
+        </div>
+        {validationError && <ValidationMsg msg={validationError} />}
+      </div>
+    );
+  }
+
+  // ─── MULTI SELECT ────────────────────────────────────────
+  if (question.type === "multi_select") {
+    const selected = (answer as string[]) || [];
+    return (
+      <div>
+        {header}
+        <div className="space-y-2">
+          {question.options?.map((opt) => {
+            const isSelected = selected.includes(opt.value);
+            return (
+              <button
+                key={opt.value}
+                onClick={() => onToggleMulti(question.id, opt.value)}
+                className={`w-full text-left px-4 py-3.5 rounded-xl border text-sm font-medium transition-all duration-300 flex items-center gap-3 ${
+                  isSelected
+                    ? "bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.08)]"
+                    : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:border-white/20"
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-all border ${
+                    isSelected
+                      ? "bg-black border-black"
+                      : "border-zinc-600"
+                  }`}
+                >
+                  {isSelected && <Check size={10} className="text-white" />}
+                </div>
+                {opt.label[lang]}
+              </button>
+            );
+          })}
+
+          {/* Other Option */}
+          {question.hasOther && (
+            <>
+              <button
+                onClick={() => onToggleMulti(question.id, "other")}
+                className={`w-full text-left px-4 py-3.5 rounded-xl border text-sm font-medium transition-all duration-300 flex items-center gap-3 ${
+                  selected.includes("other")
+                    ? "bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.08)]"
+                    : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:border-white/20"
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-all border ${
+                    selected.includes("other")
+                      ? "bg-black border-black"
+                      : "border-zinc-600"
+                  }`}
+                >
+                  {selected.includes("other") && (
+                    <Check size={10} className="text-white" />
+                  )}
+                </div>
+                {question.otherLabel?.[lang] || "Other"}
+              </button>
+
+              <AnimatePresence>
+                {selected.includes("other") && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <input
+                      type="text"
+                      value={otherText}
+                      onChange={(e) => onOtherText(question.id, e.target.value)}
+                      placeholder={ui.otherPlaceholder}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all mt-1"
+                      autoFocus
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
+        </div>
+        {validationError && <ValidationMsg msg={validationError} />}
+      </div>
+    );
+  }
+
+  // ─── DROPDOWN ────────────────────────────────────────────
+  if (question.type === "dropdown") {
+    const showOtherInput = answer === "other" && question.hasOther;
+    return (
+      <div>
+        {header}
+        <div className="relative">
+          <select
+            value={(answer as string) || ""}
+            onChange={(e) => onAnswer(question.id, e.target.value)}
+            className="w-full appearance-none bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/20 transition-all cursor-pointer pr-10"
+          >
+            <option value="" disabled className="bg-zinc-900">
+              {ui.selectPlaceholder}
+            </option>
+            {question.options?.map((opt) => (
+              <option key={opt.value} value={opt.value} className="bg-zinc-900">
+                {opt.label[lang]}
+              </option>
+            ))}
+            {question.hasOther && (
+              <option value="other" className="bg-zinc-900">
+                {question.otherLabel?.[lang] || "Other"}
+              </option>
+            )}
+          </select>
+          <ChevronDown
+            size={16}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
+          />
+        </div>
+
+        <AnimatePresence>
+          {showOtherInput && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+            >
+              <input
+                type="text"
+                value={otherText}
+                onChange={(e) => onOtherText(question.id, e.target.value)}
+                placeholder={ui.otherPlaceholder}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all mt-3"
+                autoFocus
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {validationError && <ValidationMsg msg={validationError} />}
+      </div>
+    );
+  }
+
+  // ─── SHORT TEXT ──────────────────────────────────────────
+  if (question.type === "short_text") {
+    return (
+      <div>
+        {header}
+        <input
+          type="text"
+          value={(answer as string) || ""}
+          onChange={(e) => onAnswer(question.id, e.target.value)}
+          placeholder={placeholder}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all"
+        />
+        {validationError && <ValidationMsg msg={validationError} />}
+      </div>
+    );
+  }
+
+  // ─── LONG TEXT ───────────────────────────────────────────
+  if (question.type === "long_text") {
+    return (
+      <div>
+        {header}
+        <textarea
+          rows={4}
+          value={(answer as string) || ""}
+          onChange={(e) => onAnswer(question.id, e.target.value)}
+          placeholder={placeholder}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all resize-none min-h-[120px]"
+        />
+        {validationError && <ValidationMsg msg={validationError} />}
+      </div>
+    );
+  }
+
+  // ─── STATEMENT ───────────────────────────────────────────
+  return (
+    <div>
+      {header}
+    </div>
+  );
+}
+
+function ValidationMsg({ msg }: { msg: string }) {
+  return (
+    <motion.p
+      initial={{ opacity: 0, y: -5 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="text-red-400 text-xs font-medium mt-3 ml-1"
+    >
+      {msg}
+    </motion.p>
+  );
+}
