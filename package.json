@@ -14,12 +14,15 @@
     "@react-three/fiber": "^9.5.0",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.98.0",
+    "@types/dagre": "^0.7.54",
     "ai": "^6.0.106",
+    "dagre": "^0.8.5",
     "framer-motion": "^12.34.4",
     "lucide-react": "^0.576.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "reactflow": "^11.11.4",
     "three": "^0.183.2"
   },
   "devDependencies": {

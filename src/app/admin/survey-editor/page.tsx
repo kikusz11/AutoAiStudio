@@ -33,7 +33,9 @@ import {
   ClipboardCopy,
   Upload,
   RefreshCw,
+  Network
 } from "lucide-react";
+import { SurveyFlowchart } from "@/components/admin/SurveyFlowchart";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,6 +89,7 @@ export default function SurveyEditorPage() {
 
   const [questions, setQuestions] = useState<DBQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"list" | "flow">("list");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [historyId, setHistoryId] = useState<string | null>(null);
@@ -297,10 +300,20 @@ export default function SurveyEditorPage() {
             <p className="text-xs text-foreground/30">Húzd át a kérdéseket az újrarendezéshez</p>
           </div>
           <button
-            onClick={() => { setIsCreating(true); setEditingId(null); }}
+            onClick={() => { setIsCreating(true); setEditingId(null); setViewMode("list"); }}
             className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold transition-all"
           >
             <Plus size={16} /> Új kérdés
+          </button>
+          <button
+            onClick={() => setViewMode(viewMode === "list" ? "flow" : "list")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+              viewMode === "flow" 
+                ? "bg-amber-500/10 border border-amber-500/30 text-amber-500" 
+                : "bg-white/5 border border-white/10 text-foreground/60 hover:text-foreground"
+            }`}
+          >
+            <Network size={14} /> {viewMode === "flow" ? "Lista Doksiból" : "Vizuális Fa"}
           </button>
           <button
             onClick={openJsonPanel}
@@ -344,6 +357,10 @@ export default function SurveyEditorPage() {
           <div className="text-center py-20 text-foreground/30">Betöltés...</div>
         ) : questions.length === 0 ? (
           <div className="text-center py-20 text-foreground/30">Nincs kérdés. Hozz létre egyet!</div>
+        ) : viewMode === "flow" ? (
+          <div className="h-[75vh] w-full">
+            <SurveyFlowchart questions={questions} />
+          </div>
         ) : (
           <div className="space-y-2">
             {questions.map((q, i) => (
@@ -465,17 +482,17 @@ export default function SurveyEditorPage() {
 
               {/* AI prompt hint */}
               <div className="mx-6 mt-5 mb-3 bg-purple-500/5 border border-purple-500/15 rounded-xl p-4 flex-shrink-0">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-purple-400/60 mb-2">💡 AI Prompt sablon</p>
-                <p className="text-xs text-foreground/50 leading-relaxed font-mono select-all">
-                  {"Az alábbi JSON egy kérdőív struktúrája. Kérlek [VÁLTOZTATÁS LEÍRÁSA]. A kimeneted legyen egy valid JSON tömb, pontosan ugyanolyan struktúrával, de a kért változtatásokkal. Ne adj magyarázatot, csak a JSON-t add vissza."}
+                <p className="text-[11px] font-bold uppercase tracking-widest text-purple-400/60 mb-2">💡 AI Prompt sablon a Fa Logikához</p>
+                <p className="text-[11px] text-foreground/50 leading-relaxed font-mono select-all w-full line-clamp-4 hover:line-clamp-none transition-all">
+                  {"Te egy profi Kérdőív AI vagy. A feladatod: [ÍRD IDE MIT SZERETNÉL]. SZABÁLYOK: 1. Elágazásokhoz használd a 'condition_json'-t (Pl: {\"questionId\": \"SZÜLŐ_ID\", \"includes\": [\"válasz\"]}). 2. A generált kód legyen hibátlan, hogy a rendszer rögtön értelmezze. 3. Ezután a JSON-t küldöm. Válaszként CSAK a nyers, frissített JSON tömböt küldd vissza, letisztultan felsorolva mindent. Semmi magyarázat vagy extra szöveg!"}
                 </p>
                 <button
                   onClick={() => navigator.clipboard.writeText(
-                    "Az alábbi JSON egy kérdőív struktúrája. Kérlek [VÁLTOZTATÁS LEÍRÁSA]. A kimeneted legyen egy valid JSON tömb, pontosan ugyanolyan struktúrával, de a kért változtatásokkal. Ne adj magyarázatot, csak a JSON-t add vissza.\n\n" + jsonText
+                    "Te egy profi Kérdőív Építő AI vagy. Az alábbi JSON egy dinamikus kérdőív struktúrája. A feladatod: [ÍRD IDE A CÉLT, pl. készíts más elágazást menedzsereknek].\n\nSZABÁLYOK:\n1. Használd a 'condition_json' mezőt a logikai elágazásokhoz. Szintaxis: {\"questionId\": \"SZÜLŐ_ID\", \"includes\": [\"válasz_1\"]}.\n2. Ügyelj rá, hogy minden mező pontosan valid legyen a zavartalan működéshez.\n3. Minden 'question_id' legyen egyedi.\n4. Ez az üzenet után CSAK KÓDOT fogok küldeni neked. Te KIZÁRÓLAG a módosított nyers JSON tömböt (array) küldheted vissza, letisztultan felsorolva a módosított kérdéseket. Semmi magyarázat, semmi markdown blokk, semmi társalgási szöveg! Csak a nyers JSON kód.\n\n" + jsonText
                   )}
                   className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-[11px] font-medium text-purple-300 hover:bg-purple-500/20 transition-all"
                 >
-                  <ClipboardCopy size={12} /> Prompt + JSON másolása
+                  <ClipboardCopy size={12} /> Gyökér-építő Prompt + JSON másolása
                 </button>
               </div>
 
