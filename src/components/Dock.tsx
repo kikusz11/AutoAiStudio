@@ -93,13 +93,14 @@ export function Dock({
         </button>
 
         {/* Item 5: Survey */}
-        <a
-          href="/survey"
+        <button
+          onClick={() => onNavigate(4)}
           title={labels[4]}
-          className={`relative group p-2 rounded-full transition-colors flex items-center justify-center text-foreground/50 hover:text-foreground/80 hover:bg-black/5`}
+          className={`relative group p-2 rounded-full transition-colors flex items-center justify-center ${activeSection === 4 ? "text-primary flex-shrink-0" : "text-foreground/50 hover:text-foreground/80 hover:bg-black/5"}`}
         >
-          <ClipboardList size={22} className={`transition-transform duration-300 group-hover:scale-110`} />
-        </a>
+          <ClipboardList size={22} className={`transition-transform duration-300 ${activeSection === 4 ? 'scale-110' : 'group-hover:scale-110'}`} />
+          {activeSection === 4 && <motion.div layoutId="dockActive" className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />}
+        </button>
 
       </div>
     </motion.div>

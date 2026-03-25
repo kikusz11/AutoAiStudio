@@ -12,6 +12,7 @@ import { AboutOverlay } from "@/components/AboutSection";
 import { ContactOverlay } from "@/components/ContactSection";
 import { ChatWidget } from "@/components/chat/ChatWidget";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import SurveyPage from "@/app/survey/page";
 
 const AiBrainScene = dynamic(
   () => import("@/components/three/AiBrainScene"),
@@ -28,8 +29,8 @@ const OrganicSphereAnimation = dynamic(
   { ssr: false }
 );
 
-const SECTION_COUNT = 4;
-const overlays = [HeroOverlay, ServicesOverlay, ContactOverlay, AboutOverlay];
+const SECTION_COUNT = 5;
+const overlays = [HeroOverlay, ServicesOverlay, ContactOverlay, AboutOverlay, SurveyPage];
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState(0);

@@ -11,6 +11,7 @@ export function OrganicSphereAnimation({ activeSection }: { activeSection: numbe
     { x: "-25vw", y: "25vh" },  // 1: Bottom Left (Services)
     { x: "-25vw", y: "-25vh" }, // 2: Top Left (Contact)
     { x: "25vw", y: "25vh" },   // 3: Bottom Right (About)
+    { x: "0vw", y: "0vh" },     // 4: Center (Survey)
   ];
 
   const currentPos = sectionPositions[activeSection] || sectionPositions[0];

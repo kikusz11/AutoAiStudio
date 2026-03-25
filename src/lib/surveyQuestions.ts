@@ -18,6 +18,12 @@ export interface TooltipDef {
   hu: string;
 }
 
+/** A single condition: show if answer to questionId includes any of `includes` */
+export interface SingleCondition {
+  questionId: string;
+  includes: string[];
+}
+
 export interface SurveyQuestion {
   id: string;
   type: QuestionType;
@@ -30,13 +36,31 @@ export interface SurveyQuestion {
   hasOther?: boolean;
   otherLabel?: { en: string; hu: string };
   tooltip?: TooltipDef;
-  /** Show this question only if the condition is met */
-  condition?: {
-    questionId: string;
-    /** Show if the answer includes ANY of these values */
-    includes: string[];
-  };
+  /**
+   * Show this question only when ONE condition is met (simple form)
+   * OR when ALL conditions in the `and` array are met (compound form).
+   */
+  condition?: SingleCondition | { and: SingleCondition[] };
   maxSelections?: number;
+}
+
+// ─── Helper to evaluate a condition against the current answers ───────────────
+export function evaluateCondition(
+  condition: SurveyQuestion["condition"],
+  answers: Record<string, string | string[]>
+): boolean {
+  if (!condition) return true;
+  if ("and" in condition) {
+    return condition.and.every((c) => evalSingle(c, answers));
+  }
+  return evalSingle(condition, answers);
+}
+
+function evalSingle(c: SingleCondition, answers: Record<string, string | string[]>): boolean {
+  const dep = answers[c.questionId];
+  if (!dep) return false;
+  const arr = Array.isArray(dep) ? dep : [dep];
+  return c.includes.some((v) => arr.includes(v));
 }
 
 export const surveyQuestions: SurveyQuestion[] = [
@@ -56,6 +80,26 @@ export const surveyQuestions: SurveyQuestion[] = [
   },
 
   // ─── PROFILE BLOCK ───────────────────────────────────────
+  {
+    id: "business_type",
+    type: "single_choice",
+    section: "profile",
+    label: {
+      en: "Which best describes you?",
+      hu: "Melyik illik rád leginkább?",
+    },
+    description: {
+      en: "This helps us tailor the survey and our recommendations to your situation.",
+      hu: "Ez segít nekünk a kérdőívet és ajánlásainkat az igényeidhez igazítani.",
+    },
+    required: true,
+    options: [
+      { value: "self", label: { en: "Self-employed / Freelancer", hu: "Egyéni vállalkozó / Szabadúszó" } },
+      { value: "small", label: { en: "Small business (2–20 people)", hu: "Kisvállalkozás (2–20 fő)" } },
+      { value: "medium", label: { en: "Mid-size company (21–100 people)", hu: "Középvállalat (21–100 fő)" } },
+      { value: "large", label: { en: "Large enterprise (100+ people)", hu: "Nagyvállalat (100+ fő)" } },
+    ],
+  },
   {
     id: "role",
     type: "dropdown",
@@ -102,24 +146,6 @@ export const surveyQuestions: SurveyQuestion[] = [
       { value: "finance", label: { en: "Finance / Insurance", hu: "Pénzügy / Biztosítás" } },
       { value: "education", label: { en: "Education", hu: "Oktatás" } },
       { value: "agriculture", label: { en: "Agriculture", hu: "Mezőgazdaság" } },
-    ],
-  },
-  {
-    id: "company_size",
-    type: "single_choice",
-    section: "profile",
-    label: {
-      en: "How big is your team?",
-      hu: "Mekkora a csapatod?",
-    },
-    required: true,
-    options: [
-      { value: "solo", label: { en: "Just me", hu: "Csak én" } },
-      { value: "2-5", label: { en: "2–5 people", hu: "2–5 fő" } },
-      { value: "6-20", label: { en: "6–20 people", hu: "6–20 fő" } },
-      { value: "21-50", label: { en: "21–50 people", hu: "21–50 fő" } },
-      { value: "51-100", label: { en: "51–100 people", hu: "51–100 fő" } },
-      { value: "100+", label: { en: "100+ people", hu: "100+ fő" } },
     ],
   },
 
@@ -256,21 +282,98 @@ export const surveyQuestions: SurveyQuestion[] = [
     },
     required: true,
   },
+
+  // Price ranges: shown only when would_pay=yes AND matched business_type
   {
-    id: "price_range",
+    id: "price_range_self",
     type: "single_choice",
     section: "pricing",
     label: {
       en: "What would be a fair monthly price for such a system?",
       hu: "Mi lenne egy fair havi ár egy ilyen rendszerért?",
     },
-    condition: { questionId: "would_pay", includes: ["yes"] },
+    required: true,
+    condition: {
+      and: [
+        { questionId: "would_pay", includes: ["yes"] },
+        { questionId: "business_type", includes: ["self"] },
+      ],
+    },
     options: [
-      { value: "0-10", label: { en: "€0 – €10 / month", hu: "0 – 10 € / hó" } },
-      { value: "10-30", label: { en: "€10 – €30 / month", hu: "10 – 30 € / hó" } },
+      { value: "0-5",   label: { en: "€0 – €5 / month",   hu: "0 – 5 € / hó" } },
+      { value: "5-15",  label: { en: "€5 – €15 / month",  hu: "5 – 15 € / hó" } },
+      { value: "15-30", label: { en: "€15 – €30 / month", hu: "15 – 30 € / hó" } },
       { value: "30-50", label: { en: "€30 – €50 / month", hu: "30 – 50 € / hó" } },
-      { value: "50-100", label: { en: "€50 – €100 / month", hu: "50 – 100 € / hó" } },
-      { value: "100+", label: { en: "€100+ / month", hu: "100+ € / hó" } },
+      { value: "50+",   label: { en: "€50+ / month",      hu: "50+ € / hó" } },
+    ],
+  },
+  {
+    id: "price_range_small",
+    type: "single_choice",
+    section: "pricing",
+    label: {
+      en: "What would be a fair monthly price for such a system?",
+      hu: "Mi lenne egy fair havi ár egy ilyen rendszerért?",
+    },
+    required: true,
+    condition: {
+      and: [
+        { questionId: "would_pay", includes: ["yes"] },
+        { questionId: "business_type", includes: ["small"] },
+      ],
+    },
+    options: [
+      { value: "0-20",   label: { en: "€0 – €20 / month",  hu: "0 – 20 € / hó" } },
+      { value: "20-50",  label: { en: "€20 – €50 / month", hu: "20 – 50 € / hó" } },
+      { value: "50-100", label: { en: "€50 – €100 / month",hu: "50 – 100 € / hó" } },
+      { value: "100-200",label: { en: "€100 – €200 / month",hu: "100 – 200 € / hó" } },
+      { value: "200+",   label: { en: "€200+ / month",     hu: "200+ € / hó" } },
+    ],
+  },
+  {
+    id: "price_range_medium",
+    type: "single_choice",
+    section: "pricing",
+    label: {
+      en: "What would be a fair monthly price for such a system?",
+      hu: "Mi lenne egy fair havi ár egy ilyen rendszerért?",
+    },
+    required: true,
+    condition: {
+      and: [
+        { questionId: "would_pay", includes: ["yes"] },
+        { questionId: "business_type", includes: ["medium"] },
+      ],
+    },
+    options: [
+      { value: "0-50",    label: { en: "€0 – €50 / month",   hu: "0 – 50 € / hó" } },
+      { value: "50-150",  label: { en: "€50 – €150 / month", hu: "50 – 150 € / hó" } },
+      { value: "150-300", label: { en: "€150 – €300 / month",hu: "150 – 300 € / hó" } },
+      { value: "300-500", label: { en: "€300 – €500 / month",hu: "300 – 500 € / hó" } },
+      { value: "500+",    label: { en: "€500+ / month",      hu: "500+ € / hó" } },
+    ],
+  },
+  {
+    id: "price_range_large",
+    type: "single_choice",
+    section: "pricing",
+    label: {
+      en: "What would be a fair monthly price for such a system?",
+      hu: "Mi lenne egy fair havi ár egy ilyen rendszerért?",
+    },
+    required: true,
+    condition: {
+      and: [
+        { questionId: "would_pay", includes: ["yes"] },
+        { questionId: "business_type", includes: ["large"] },
+      ],
+    },
+    options: [
+      { value: "0-100",    label: { en: "€0 – €100 / month",   hu: "0 – 100 € / hó" } },
+      { value: "100-300",  label: { en: "€100 – €300 / month", hu: "100 – 300 € / hó" } },
+      { value: "300-600",  label: { en: "€300 – €600 / month", hu: "300 – 600 € / hó" } },
+      { value: "600-1000", label: { en: "€600 – €1000 / month",hu: "600 – 1000 € / hó" } },
+      { value: "1000+",    label: { en: "€1000+ / month",      hu: "1000+ € / hó" } },
     ],
   },
 
@@ -293,13 +396,13 @@ export const surveyQuestions: SurveyQuestion[] = [
 ];
 
 export const surveySections = [
-  { id: "intro", label: { en: "Welcome", hu: "Üdvözlünk" } },
-  { id: "profile", label: { en: "About You", hu: "Rólad" } },
-  { id: "systems", label: { en: "Your Tools", hu: "Eszközeid" } },
-  { id: "pain", label: { en: "Challenges", hu: "Kihívások" } },
-  { id: "features", label: { en: "Features", hu: "Funkciók" } },
-  { id: "pricing", label: { en: "Pricing", hu: "Árazás" } },
-  { id: "end", label: { en: "Finish", hu: "Befejezés" } },
+  { id: "intro",    label: { en: "Welcome",    hu: "Üdvözlünk" } },
+  { id: "profile",  label: { en: "About You",  hu: "Rólad" } },
+  { id: "systems",  label: { en: "Your Tools", hu: "Eszközeid" } },
+  { id: "pain",     label: { en: "Challenges", hu: "Kihívások" } },
+  { id: "features", label: { en: "Features",   hu: "Funkciók" } },
+  { id: "pricing",  label: { en: "Pricing",    hu: "Árazás" } },
+  { id: "end",      label: { en: "Finish",     hu: "Befejezés" } },
 ];
 
 export const surveyUI = {
