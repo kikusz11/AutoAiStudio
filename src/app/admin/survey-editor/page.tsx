@@ -231,30 +231,98 @@ export default function SurveyEditorPage() {
   const openJsonPanel = () => {
     let exportable: any[];
     if (questions.length === 0) {
-      exportable = [{
-        question_id: "example_question_1",
-        type: "single_choice",
-        section: "intro",
-        sort_order: 1,
-        is_active: true,
-        required: true,
-        label_hu: "Minta kérdés (HU)",
-        label_en: "Sample question (EN)",
-        description_hu: "Opcionális leírás",
-        description_en: "Optional description",
-        placeholder_hu: null,
-        placeholder_en: null,
-        tooltip_hu: null,
-        tooltip_en: null,
-        has_other: false,
-        other_label_hu: null,
-        other_label_en: null,
-        options: [
-          { value: "option_1", label_hu: "Válasz 1", label_en: "Option 1" },
-          { value: "option_2", label_hu: "Válasz 2", label_en: "Option 2" }
-        ],
-        condition_json: null
-      }];
+      exportable = [
+        {
+          question_id: "intro_1",
+          type: "intro",
+          section: "intro",
+          sort_order: 1,
+          is_active: true,
+          required: false,
+          label_hu: "Üdvözlünk a Kérdőívben!",
+          label_en: "Welcome to our Survey!",
+          description_hu: "Kérlek, válaszolj a következő kérdésekre. (Ez egy intro típus, nincs válaszmező)",
+          description_en: "Please answer the following questions. (Intro type)",
+          placeholder_hu: null,
+          placeholder_en: null,
+          tooltip_hu: null,
+          tooltip_en: null,
+          has_other: false,
+          other_label_hu: null,
+          other_label_en: null,
+          options: [],
+          condition_json: null
+        },
+        {
+          question_id: "role_selection",
+          type: "single_choice",
+          section: "profile",
+          sort_order: 2,
+          is_active: true,
+          required: true,
+          label_hu: "Mi a jelenlegi pozíciód?",
+          label_en: "What is your current role?",
+          description_hu: "Válassz egyet a listából.",
+          description_en: "Choose one from the list.",
+          placeholder_hu: null,
+          placeholder_en: null,
+          tooltip_hu: null,
+          tooltip_en: null,
+          has_other: true,
+          other_label_hu: "Egyéb pozíció (kérlek, írd le)...",
+          other_label_en: "Other role (please specify)...",
+          options: [
+            { value: "manager", label_hu: "Menedzser / Vezető", label_en: "Manager / Director" },
+            { value: "employee", label_hu: "Beosztott / Szakértő", label_en: "Employee / Specialist" }
+          ],
+          condition_json: null
+        },
+        {
+          question_id: "manager_tool_branch",
+          type: "multi_select",
+          section: "systems",
+          sort_order: 3,
+          is_active: true,
+          required: true,
+          label_hu: "Menedzserként milyen rendszereket használsz?",
+          label_en: "As a manager, which systems do you use?",
+          description_hu: "Több opció is kiválasztható (Ez egy feltételes kérdés!).",
+          description_en: "Multiple options allowed (Conditional question!).",
+          placeholder_hu: null,
+          placeholder_en: null,
+          tooltip_hu: null,
+          tooltip_en: null,
+          has_other: true,
+          other_label_hu: "Más rendszer...",
+          other_label_en: "Other system...",
+          options: [
+            { value: "crm", label_hu: "CRM (HubSpot, Salesforce)", label_en: "CRM" },
+            { value: "erp", label_hu: "ERP (SAP, stb)", label_en: "ERP" }
+          ],
+          condition_json: { questionId: "role_selection", includes: ["manager"] }
+        },
+        {
+          question_id: "feedback_text",
+          type: "long_text",
+          section: "end",
+          sort_order: 4,
+          is_active: true,
+          required: false,
+          label_hu: "Bármilyen egyéb észrevétel?",
+          label_en: "Any other feedback?",
+          description_hu: "Kifejtős (hosszú) szöveges doboz.",
+          description_en: "Long text box.",
+          placeholder_hu: "Írd ide a gondolataid...",
+          placeholder_en: "Type your thoughts here...",
+          tooltip_hu: "(Opcionális)",
+          tooltip_en: "(Optional)",
+          has_other: false,
+          other_label_hu: null,
+          other_label_en: null,
+          options: [],
+          condition_json: null
+        }
+      ];
     } else {
       exportable = questions.map((q) => ({
         question_id: q.question_id,
